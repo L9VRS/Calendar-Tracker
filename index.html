@@ -1168,23 +1168,32 @@
         };
 
         const signOut = async (message = 'Signed out') => {
+            console.log('Sign out clicked');
+            
             if (state.sessionTimerInterval) {
                 clearInterval(state.sessionTimerInterval);
+                console.log('Timer cleared');
             }
             
-            if (supabaseConfigured) {
+            if (supabaseConfigured && supabaseClient) {
                 try {
+                    console.log('Attempting Supabase sign out...');
                     const { error } = await supabaseClient.auth.signOut({ scope: 'global' });
                     if (error) {
                         console.error('Sign out error:', error);
+                    } else {
+                        console.log('Supabase sign out successful');
                     }
                 } catch (err) {
                     console.error('Sign out exception:', err);
                 }
+            } else {
+                console.log('Supabase not configured or client missing');
             }
             
             state.user = null;
             state.selectedDays = {};
+            state.daysOff = {};
             state.sessionStart = null;
             
             document.getElementById('userBadge').style.display = 'none';
@@ -1192,6 +1201,7 @@
             render();
             
             showToast(message);
+            console.log('Sign out complete');
         };
 
         const handleAuthStateChange = async (event, session) => {
