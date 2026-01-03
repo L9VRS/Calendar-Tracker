@@ -169,6 +169,49 @@
             text-align: center;
         }
 
+        /* Mode Toggle */
+        .mode-toggle {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--bg-secondary);
+            padding: 4px;
+            border-radius: 10px;
+        }
+
+        .mode-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 0.75rem;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn:hover {
+            color: var(--text-secondary);
+        }
+
+        .mode-btn.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .mode-btn.active[data-mode="dayoff"] {
+            color: #60a5fa;
+        }
+
+        .mode-icon {
+            font-size: 0.9rem;
+        }
+
         /* Calendar Grid */
         .calendar-grid {
             display: grid;
@@ -244,6 +287,19 @@
 
         .day-cell.today {
             border-color: var(--accent);
+        }
+
+        .day-cell.dayoff {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .day-cell.dayoff::after {
+            content: '✈';
+            position: absolute;
+            bottom: 2px;
+            font-size: 0.6rem;
         }
 
         .day-cell.disabled {
@@ -387,6 +443,7 @@
         .legend-dot.weekend { background: var(--weekend); }
         .legend-dot.holiday { background: var(--holiday); }
         .legend-dot.selected { background: var(--accent); }
+        .legend-dot.dayoff { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
         .legend-dot.today { border: 2px solid var(--accent); background: transparent; }
 
         /* Holiday List */
@@ -776,6 +833,14 @@
                             <span class="current-month" id="currentMonth"></span>
                             <button class="nav-btn" id="nextMonth">→</button>
                         </div>
+                        <div class="mode-toggle">
+                            <button class="mode-btn active" id="modeOffice" data-mode="office">
+                                <span class="mode-icon">🏢</span> Office
+                            </button>
+                            <button class="mode-btn" id="modeDayOff" data-mode="dayoff">
+                                <span class="mode-icon">🏖️</span> Day Off
+                            </button>
+                        </div>
                     </div>
                     <div class="calendar-grid" id="calendarGrid"></div>
                     <div class="legend">
@@ -790,6 +855,10 @@
                         <div class="legend-item">
                             <div class="legend-dot selected"></div>
                             <span>In Office</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot dayoff"></div>
+                            <span>Day Off</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-dot today"></div>
@@ -819,6 +888,10 @@
                     <div class="stat-row">
                         <span class="stat-label">Working Days</span>
                         <span class="stat-value" id="workingDays">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Days Off Taken</span>
+                        <span class="stat-value" id="daysOff" style="color: #60a5fa;">0</span>
                     </div>
                     <div class="stat-row">
                         <span class="stat-label">Required (60%)</span>
@@ -937,10 +1010,12 @@
             currentYear: new Date().getFullYear(),
             currentMonth: new Date().getMonth(),
             selectedDays: {},
+            daysOff: {},
             holidays: {},
             user: null,
             sessionStart: null,
-            sessionTimerInterval: null
+            sessionTimerInterval: null,
+            currentMode: 'office' // 'office' or 'dayoff'
         };
 
         // Initialize holidays
@@ -1002,7 +1077,10 @@
         // Database operations
         const saveToCloud = async () => {
             if (!supabaseConfigured || !state.user) {
-                localStorage.setItem('ukOfficeTracker', JSON.stringify(state.selectedDays));
+                localStorage.setItem('ukOfficeTracker', JSON.stringify({
+                    selectedDays: state.selectedDays,
+                    daysOff: state.daysOff
+                }));
                 return;
             }
 
@@ -1012,6 +1090,7 @@
                     .upsert({ 
                         user_id: state.user.id,
                         selected_days: state.selectedDays,
+                        days_off: state.daysOff,
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'user_id' });
 
@@ -1019,33 +1098,45 @@
             } catch (err) {
                 console.error('Save error:', err);
                 // Fallback to local storage
-                localStorage.setItem('ukOfficeTracker_' + state.user.id, JSON.stringify(state.selectedDays));
+                localStorage.setItem('ukOfficeTracker_' + state.user.id, JSON.stringify({
+                    selectedDays: state.selectedDays,
+                    daysOff: state.daysOff
+                }));
             }
         };
 
         const loadFromCloud = async () => {
             if (!supabaseConfigured || !state.user) {
                 const saved = localStorage.getItem('ukOfficeTracker');
-                if (saved) state.selectedDays = JSON.parse(saved);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    state.selectedDays = data.selectedDays || data;
+                    state.daysOff = data.daysOff || {};
+                }
                 return;
             }
 
             try {
                 const { data, error } = await supabaseClient
                     .from('office_days')
-                    .select('selected_days')
+                    .select('selected_days, days_off')
                     .eq('user_id', state.user.id)
                     .single();
 
                 if (error && error.code !== 'PGRST116') throw error;
                 
-                if (data && data.selected_days) {
-                    state.selectedDays = data.selected_days;
+                if (data) {
+                    state.selectedDays = data.selected_days || {};
+                    state.daysOff = data.days_off || {};
                 }
             } catch (err) {
                 console.error('Load error:', err);
                 const saved = localStorage.getItem('ukOfficeTracker_' + state.user.id);
-                if (saved) state.selectedDays = JSON.parse(saved);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    state.selectedDays = data.selectedDays || data;
+                    state.daysOff = data.daysOff || {};
+                }
             }
         };
 
@@ -1179,23 +1270,40 @@
             const month = state.currentMonth;
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
-            let workingDays = 0;
+            let totalWorkingDays = 0;
+            let daysOffCount = 0;
             let selectedDays = 0;
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
+                const key = getDateKey(date);
+                
                 if (isWorkingDay(date)) {
-                    workingDays++;
-                    if (state.selectedDays[getDateKey(date)]) selectedDays++;
+                    if (state.daysOff[key]) {
+                        daysOffCount++;
+                    } else {
+                        totalWorkingDays++;
+                        if (state.selectedDays[key]) selectedDays++;
+                    }
                 }
             }
 
-            const requiredDays = Math.ceil(workingDays * 0.6);
+            // Working days after accounting for days off
+            const effectiveWorkingDays = totalWorkingDays;
+            const requiredDays = Math.ceil(effectiveWorkingDays * 0.6);
             const remainingDays = Math.max(0, requiredDays - selectedDays);
-            const percentage = workingDays > 0 ? Math.round((selectedDays / workingDays) * 100) : 0;
+            const percentage = effectiveWorkingDays > 0 ? Math.round((selectedDays / effectiveWorkingDays) * 100) : 0;
             const isCompliant = selectedDays >= requiredDays;
 
-            return { workingDays, requiredDays, selectedDays, remainingDays, percentage, isCompliant };
+            return { 
+                workingDays: effectiveWorkingDays, 
+                daysOffCount,
+                requiredDays, 
+                selectedDays, 
+                remainingDays, 
+                percentage, 
+                isCompliant 
+            };
         };
 
         // Render functions
@@ -1242,15 +1350,17 @@
                 const holiday = isHoliday(date);
                 const holidayName = getHolidayName(date);
                 const selected = state.selectedDays[key];
+                const dayOff = state.daysOff[key];
                 const today = isToday(date);
 
                 let classes = ['day-cell'];
                 if (weekend) classes.push('weekend');
-                if (holiday) classes.push('holiday');
-                if (selected && !weekend && !holiday) classes.push('selected');
+                else if (holiday) classes.push('holiday');
+                else if (dayOff) classes.push('dayoff');
+                else if (selected) classes.push('selected');
                 if (today) classes.push('today');
 
-                const title = holidayName || (weekend ? 'Weekend' : '');
+                const title = holidayName || (weekend ? 'Weekend' : (dayOff ? 'Day Off' : ''));
                 html += `<div class="${classes.join(' ')}" data-date="${key}" title="${title}">${day}</div>`;
             }
 
@@ -1264,11 +1374,32 @@
                     }
                     
                     const key = cell.dataset.date;
-                    if (state.selectedDays[key]) {
-                        delete state.selectedDays[key];
+                    
+                    if (state.currentMode === 'office') {
+                        // If it's marked as day off, remove that first
+                        if (state.daysOff[key]) {
+                            delete state.daysOff[key];
+                        }
+                        // Toggle office day
+                        if (state.selectedDays[key]) {
+                            delete state.selectedDays[key];
+                        } else {
+                            state.selectedDays[key] = true;
+                        }
                     } else {
-                        state.selectedDays[key] = true;
+                        // Day off mode
+                        // If it's marked as office day, remove that first
+                        if (state.selectedDays[key]) {
+                            delete state.selectedDays[key];
+                        }
+                        // Toggle day off
+                        if (state.daysOff[key]) {
+                            delete state.daysOff[key];
+                        } else {
+                            state.daysOff[key] = true;
+                        }
                     }
+                    
                     debouncedSave();
                     render();
                 });
@@ -1279,6 +1410,7 @@
             const stats = calculateStats();
             
             document.getElementById('workingDays').textContent = stats.workingDays;
+            document.getElementById('daysOff').textContent = stats.daysOffCount;
             document.getElementById('requiredDays').textContent = stats.requiredDays;
             document.getElementById('selectedDays').textContent = stats.selectedDays;
             document.getElementById('remainingDays').textContent = stats.remainingDays;
@@ -1370,7 +1502,9 @@
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
             for (let day = 1; day <= daysInMonth; day++) {
-                delete state.selectedDays[`${year}-${month}-${day}`];
+                const key = `${year}-${month}-${day}`;
+                delete state.selectedDays[key];
+                delete state.daysOff[key];
             }
             debouncedSave();
             render();
@@ -1379,6 +1513,19 @@
 
         document.getElementById('githubLogin').addEventListener('click', signInWithGitHub);
         document.getElementById('signOut').addEventListener('click', () => signOut());
+
+        // Mode toggle
+        document.getElementById('modeOffice').addEventListener('click', () => {
+            state.currentMode = 'office';
+            document.getElementById('modeOffice').classList.add('active');
+            document.getElementById('modeDayOff').classList.remove('active');
+        });
+
+        document.getElementById('modeDayOff').addEventListener('click', () => {
+            state.currentMode = 'dayoff';
+            document.getElementById('modeDayOff').classList.add('active');
+            document.getElementById('modeOffice').classList.remove('active');
+        });
 
         // Initialize
         const init = async () => {
