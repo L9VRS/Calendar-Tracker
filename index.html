@@ -372,6 +372,12 @@
             filter: drop-shadow(0 0 8px var(--danger-glow));
         }
 
+        .compliance-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
         .compliance-percentage {
             position: absolute;
             top: 50%;
@@ -413,6 +419,104 @@
 
         .stat-value.danger {
             color: var(--danger);
+        }
+
+        /* 3-Month Compliance Card */
+        .three-month-card {
+            padding: 1.25rem;
+        }
+
+        .three-month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .three-month-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .three-month-status {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .three-month-status.compliant {
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .three-month-status.not-compliant {
+            background: var(--danger-glow);
+            color: var(--danger);
+        }
+
+        .three-month-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .three-month-bar {
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .three-month-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease, background 0.3s ease;
+            width: 0%;
+        }
+
+        .three-month-fill.compliant {
+            background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+        }
+
+        .three-month-fill.not-compliant {
+            background: linear-gradient(90deg, #ef4444, var(--danger));
+        }
+
+        .three-month-target {
+            position: absolute;
+            left: 60%;
+            top: -2px;
+            bottom: -2px;
+            width: 2px;
+            background: var(--text-muted);
+            border-radius: 1px;
+        }
+
+        .three-month-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.4rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .target-label {
+            position: relative;
+            left: 10%;
+        }
+
+        .three-month-details {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .three-month-details span {
+            color: var(--text-primary);
+            font-weight: 500;
         }
 
         /* Legend */
@@ -879,9 +983,29 @@
                         </svg>
                         <div class="compliance-percentage" id="compliancePercent">0%</div>
                     </div>
+                    <div class="compliance-label">This Month</div>
                     <div class="actions">
                         <button class="btn btn-secondary" id="clearMonth">Clear Month</button>
                     </div>
+                </div>
+
+                <div class="card three-month-card">
+                    <div class="three-month-header">
+                        <span class="three-month-title">Rolling 3-Month Average</span>
+                        <span class="three-month-status" id="threeMonthStatus">—</span>
+                    </div>
+                    <div class="three-month-bar-container">
+                        <div class="three-month-bar">
+                            <div class="three-month-fill" id="threeMonthFill"></div>
+                            <div class="three-month-target"></div>
+                        </div>
+                        <div class="three-month-labels">
+                            <span>0%</span>
+                            <span class="target-label">60%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                    <div class="three-month-details" id="threeMonthDetails"></div>
                 </div>
 
                 <div class="card stats-breakdown">
@@ -1316,6 +1440,65 @@
             };
         };
 
+        // Calculate rolling 3-month compliance
+        const calculate3MonthStats = () => {
+            let totalWorkingDays = 0;
+            let totalSelectedDays = 0;
+            const monthBreakdown = [];
+            
+            // Get current month and go back 2 months (3 months total)
+            for (let i = 0; i < 3; i++) {
+                let month = state.currentMonth - i;
+                let year = state.currentYear;
+                
+                // Handle year rollover
+                while (month < 0) {
+                    month += 12;
+                    year--;
+                }
+                
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                let monthWorkingDays = 0;
+                let monthSelectedDays = 0;
+                
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const key = getDateKey(date);
+                    
+                    if (isWorkingDay(date) && !state.daysOff[key]) {
+                        monthWorkingDays++;
+                        if (state.selectedDays[key]) {
+                            monthSelectedDays++;
+                        }
+                    }
+                }
+                
+                totalWorkingDays += monthWorkingDays;
+                totalSelectedDays += monthSelectedDays;
+                
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                monthBreakdown.push({
+                    name: monthNames[month],
+                    working: monthWorkingDays,
+                    selected: monthSelectedDays
+                });
+            }
+            
+            const percentage = totalWorkingDays > 0 
+                ? Math.round((totalSelectedDays / totalWorkingDays) * 100) 
+                : 0;
+            const isCompliant = percentage >= 60;
+            
+            return {
+                totalWorkingDays,
+                totalSelectedDays,
+                percentage,
+                isCompliant,
+                monthBreakdown: monthBreakdown.reverse() // Show oldest to newest
+            };
+        };
+
         // Render functions
         const renderYearSelector = () => {
             const container = document.getElementById('yearSelector');
@@ -1463,10 +1646,34 @@
             `).join('');
         };
 
+        const render3MonthStats = () => {
+            const stats = calculate3MonthStats();
+            
+            const statusEl = document.getElementById('threeMonthStatus');
+            const fillEl = document.getElementById('threeMonthFill');
+            const detailsEl = document.getElementById('threeMonthDetails');
+            
+            statusEl.textContent = stats.isCompliant ? '✓ Compliant' : '⚠ Not Compliant';
+            statusEl.className = `three-month-status ${stats.isCompliant ? 'compliant' : 'not-compliant'}`;
+            
+            fillEl.style.width = `${Math.min(stats.percentage, 100)}%`;
+            fillEl.className = `three-month-fill ${stats.isCompliant ? 'compliant' : 'not-compliant'}`;
+            
+            const breakdown = stats.monthBreakdown
+                .map(m => `${m.name}: ${m.selected}/${m.working}`)
+                .join(' · ');
+            
+            detailsEl.innerHTML = `
+                <span>${stats.totalSelectedDays}</span> of <span>${stats.totalWorkingDays}</span> days (<span>${stats.percentage}%</span>)<br>
+                ${breakdown}
+            `;
+        };
+
         const render = () => {
             renderYearSelector();
             renderCalendar();
             renderStats();
+            render3MonthStats();
             renderHolidays();
         };
 
