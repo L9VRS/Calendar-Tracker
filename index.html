@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Office Day Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #12090d;
+            --bg-secondary: #1c1016;
+            --bg-card: #271a20;
+            --accent: #e84a8a;
+            --accent-glow: rgba(232, 74, 138, 0.2);
+            --accent-dim: #c93d75;
+            --danger: #ff6b6b;
+            --danger-glow: rgba(255, 107, 107, 0.15);
+            --text-primary: #f8f0f4;
+            --text-secondary: #b8a0aa;
+            --text-muted: #7a6670;
+            --border: #3d2832;
+            --weekend: #2d1f26;
+            --holiday: #a855f7;
+            --holiday-glow: rgba(168, 85, 247, 0.25);
+            --selected: #e84a8a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            z-index: 1000;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-top: 1rem;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+
+        h1 {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 2.5rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Month Navigation */
+        .month-nav {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .nav-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 1.1rem;
+        }
+
+        .nav-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-primary);
+            transform: translateY(-1px);
+        }
+
+        .current-month {
+            font-size: 1.25rem;
+            font-weight: 600;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        /* Calendar Grid */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+
+        .day-header {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            padding: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            border: 2px solid transparent;
+            background: var(--bg-secondary);
+        }
+
+        .day-cell:hover:not(.disabled):not(.weekend):not(.holiday) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .day-cell.empty {
+            background: transparent;
+            cursor: default;
+        }
+
+        .day-cell.weekend {
+            background: var(--weekend);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .day-cell.holiday {
+            background: var(--holiday-glow);
+            color: var(--holiday);
+            cursor: not-allowed;
+            border-color: var(--holiday);
+        }
+
+        .day-cell.holiday::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            width: 4px;
+            height: 4px;
+            background: var(--holiday);
+            border-radius: 50%;
+        }
+
+        .day-cell.selected {
+            background: var(--accent);
+            color: var(--bg-primary);
+            font-weight: 700;
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+
+        .day-cell.today {
+            border-color: var(--accent);
+        }
+
+        .day-cell.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .compliance-card {
+            text-align: center;
+            padding: 2rem 1.5rem;
+        }
+
+        .compliance-status {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.75rem;
+        }
+
+        .compliance-status.compliant {
+            color: var(--accent);
+        }
+
+        .compliance-status.not-compliant {
+            color: var(--danger);
+        }
+
+        .compliance-ring {
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 1rem;
+            position: relative;
+        }
+
+        .compliance-ring svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .compliance-ring circle {
+            fill: none;
+            stroke-width: 8;
+        }
+
+        .compliance-ring .bg {
+            stroke: var(--border);
+        }
+
+        .compliance-ring .progress {
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease;
+        }
+
+        .compliance-ring .progress.compliant {
+            stroke: var(--accent);
+            filter: drop-shadow(0 0 8px var(--accent-glow));
+        }
+
+        .compliance-ring .progress.not-compliant {
+            stroke: var(--danger);
+            filter: drop-shadow(0 0 8px var(--danger-glow));
+        }
+
+        .compliance-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .stats-breakdown {
+            padding: 1.25rem;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .stat-value.accent {
+            color: var(--accent);
+        }
+
+        .stat-value.danger {
+            color: var(--danger);
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-top: 1.5rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+
+        .legend-dot.weekend { background: var(--weekend); }
+        .legend-dot.holiday { background: var(--holiday); }
+        .legend-dot.selected { background: var(--accent); }
+        .legend-dot.today { border: 2px solid var(--accent); background: transparent; }
+
+        /* Holiday List */
+        .holiday-list {
+            padding: 1rem;
+        }
+
+        .holiday-list-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .holiday-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .holiday-date {
+            background: var(--holiday-glow);
+            color: var(--holiday);
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        /* Actions */
+        .actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-dim);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        /* Year selector */
+        .year-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            justify-content: center;
+        }
+
+        .year-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .year-btn.active {
+            background: var(--accent);
+            color: var(--bg-primary);
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+
+        .year-btn:hover:not(.active) {
+            background: var(--border);
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-color: var(--accent);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2.5rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.hidden .modal {
+            transform: translateY(20px);
+        }
+
+        .modal-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-text {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .modal-btn {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+        }
+
+        .btn-github {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: #24292e;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-github:hover {
+            background: #2f363d;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-hint {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-top: 1rem;
+        }
+
+        /* Session timer */
+        .session-timer {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .session-timer.warning {
+            color: var(--danger);
+        }
+
+        /* User badge */
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .user-badge strong {
+            color: var(--accent);
+        }
+
+        .user-badge button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .user-badge button:hover {
+            background: var(--border);
+            color: var(--text-primary);
+        }
+
+        /* Sync indicator */
+        .sync-status {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .sync-status.syncing {
+            color: var(--accent);
+        }
+
+        .sync-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .sync-status.syncing .sync-dot {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        .sync-status.success .sync-dot {
+            background: var(--accent);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+    <div class="noise-overlay"></div>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <div class="modal-icon">🔐</div>
+            <h2 class="modal-title">Welcome!</h2>
+            <p class="modal-text">Sign in with GitHub to save and sync your office days across devices.</p>
+            <button class="btn btn-github" id="githubLogin">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                Sign in with GitHub
+            </button>
+            <p class="modal-hint">Your data is securely tied to your GitHub account.</p>
+        </div>
+    </div>
+    
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">📅</div>
+                <h1>UK Office Day Tracker</h1>
+            </div>
+            <p class="subtitle">Track your 60% office attendance requirement</p>
+            <div class="user-badge" id="userBadge" style="display: none;">
+                <img id="userAvatar" src="" alt="" style="width: 24px; height: 24px; border-radius: 50%; display: none;">
+                <span>Signed in as <strong id="displayUsername"></strong></span>
+                <span class="session-timer" id="sessionTimer">
+                    <span id="sessionTimeLeft"></span>
+                </span>
+                <button id="signOut">Sign out</button>
+            </div>
+        </header>
+
+        <div class="year-selector" id="yearSelector"></div>
+
+        <main class="main-grid">
+            <div class="calendar-section">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="month-nav">
+                            <button class="nav-btn" id="prevMonth">←</button>
+                            <span class="current-month" id="currentMonth"></span>
+                            <button class="nav-btn" id="nextMonth">→</button>
+                        </div>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-dot weekend"></div>
+                            <span>Weekend</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot holiday"></div>
+                            <span>Public Holiday</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot selected"></div>
+                            <span>In Office</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot today"></div>
+                            <span>Today</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <div class="card compliance-card">
+                    <div class="compliance-status" id="complianceStatus">Loading...</div>
+                    <div class="compliance-ring">
+                        <svg viewBox="0 0 100 100">
+                            <circle class="bg" cx="50" cy="50" r="42"></circle>
+                            <circle class="progress" id="progressRing" cx="50" cy="50" r="42" 
+                                stroke-dasharray="263.89" stroke-dashoffset="263.89"></circle>
+                        </svg>
+                        <div class="compliance-percentage" id="compliancePercent">0%</div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-secondary" id="clearMonth">Clear Month</button>
+                    </div>
+                </div>
+
+                <div class="card stats-breakdown">
+                    <div class="stat-row">
+                        <span class="stat-label">Working Days</span>
+                        <span class="stat-value" id="workingDays">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Required (60%)</span>
+                        <span class="stat-value accent" id="requiredDays">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Days Selected</span>
+                        <span class="stat-value" id="selectedDays">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Days Remaining</span>
+                        <span class="stat-value" id="remainingDays">0</span>
+                    </div>
+                </div>
+
+                <div class="card holiday-list">
+                    <div class="holiday-list-title">Holidays This Month</div>
+                    <div id="holidayList"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            Built for tracking UK hybrid work requirements • Data stored locally in your browser
+        </footer>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // ============================================
+        // SUPABASE CONFIGURATION
+        // Replace these with your own Supabase credentials
+        // ============================================
+        const SUPABASE_URL = 'https://eheahwtrnksijftgrfme.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_txovV-ZxUlpdkH-bYxYWVg_QtXxZlAU';
+        
+        // Session timeout (30 minutes in milliseconds)
+        const SESSION_TIMEOUT = 30 * 60 * 1000;
+        
+        // Initialize Supabase client
+        let supabase = null;
+        const supabaseConfigured = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+        
+        if (supabaseConfigured) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // UK Public Holidays Calculator
+        const getEasterDate = (year) => {
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month, day);
+        };
+
+        const getUKPublicHolidays = (year) => {
+            const holidays = [];
+            
+            let newYear = new Date(year, 0, 1);
+            if (newYear.getDay() === 0) newYear = new Date(year, 0, 2);
+            if (newYear.getDay() === 6) newYear = new Date(year, 0, 3);
+            holidays.push({ date: newYear, name: "New Year's Day" });
+
+            const easter = getEasterDate(year);
+            const goodFriday = new Date(easter);
+            goodFriday.setDate(easter.getDate() - 2);
+            holidays.push({ date: goodFriday, name: "Good Friday" });
+
+            const easterMonday = new Date(easter);
+            easterMonday.setDate(easter.getDate() + 1);
+            holidays.push({ date: easterMonday, name: "Easter Monday" });
+
+            let earlyMay = new Date(year, 4, 1);
+            while (earlyMay.getDay() !== 1) earlyMay.setDate(earlyMay.getDate() + 1);
+            holidays.push({ date: earlyMay, name: "Early May Bank Holiday" });
+
+            let springBank = new Date(year, 4, 31);
+            while (springBank.getDay() !== 1) springBank.setDate(springBank.getDate() - 1);
+            holidays.push({ date: springBank, name: "Spring Bank Holiday" });
+
+            let summerBank = new Date(year, 7, 31);
+            while (summerBank.getDay() !== 1) summerBank.setDate(summerBank.getDate() - 1);
+            holidays.push({ date: summerBank, name: "Summer Bank Holiday" });
+
+            let christmas = new Date(year, 11, 25);
+            const christmasDay = christmas.getDay();
+            if (christmasDay === 0) christmas = new Date(year, 11, 27);
+            if (christmasDay === 6) christmas = new Date(year, 11, 27);
+            holidays.push({ date: christmas, name: "Christmas Day" });
+
+            let boxing = new Date(year, 11, 26);
+            const boxingDay = boxing.getDay();
+            if (boxingDay === 0) boxing = new Date(year, 11, 28);
+            if (boxingDay === 6) boxing = new Date(year, 11, 28);
+            if (boxing.getTime() === christmas.getTime()) boxing.setDate(boxing.getDate() + 1);
+            holidays.push({ date: boxing, name: "Boxing Day" });
+
+            return holidays;
+        };
+
+        // App State
+        const state = {
+            currentYear: new Date().getFullYear(),
+            currentMonth: new Date().getMonth(),
+            selectedDays: {},
+            holidays: {},
+            user: null,
+            sessionStart: null,
+            sessionTimerInterval: null
+        };
+
+        // Initialize holidays
+        const initHolidays = () => {
+            for (let year = 2024; year <= 2030; year++) {
+                state.holidays[year] = getUKPublicHolidays(year);
+            }
+        };
+
+        // Session management
+        const startSessionTimer = () => {
+            state.sessionStart = Date.now();
+            
+            // Clear any existing interval
+            if (state.sessionTimerInterval) {
+                clearInterval(state.sessionTimerInterval);
+            }
+            
+            // Update timer every second
+            state.sessionTimerInterval = setInterval(updateSessionDisplay, 1000);
+            updateSessionDisplay();
+        };
+
+        const updateSessionDisplay = () => {
+            const elapsed = Date.now() - state.sessionStart;
+            const remaining = SESSION_TIMEOUT - elapsed;
+            
+            if (remaining <= 0) {
+                signOut('Session expired');
+                return;
+            }
+            
+            const minutes = Math.floor(remaining / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            
+            const timerEl = document.getElementById('sessionTimeLeft');
+            const timerContainer = document.getElementById('sessionTimer');
+            
+            timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Warning when under 5 minutes
+            if (remaining < 5 * 60 * 1000) {
+                timerContainer.classList.add('warning');
+            } else {
+                timerContainer.classList.remove('warning');
+            }
+        };
+
+        const resetSessionTimer = () => {
+            if (state.user) {
+                state.sessionStart = Date.now();
+            }
+        };
+
+        // Reset timer on user activity
+        document.addEventListener('click', resetSessionTimer);
+        document.addEventListener('keypress', resetSessionTimer);
+
+        // Database operations
+        const saveToCloud = async () => {
+            if (!supabaseConfigured || !state.user) {
+                localStorage.setItem('ukOfficeTracker', JSON.stringify(state.selectedDays));
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('office_days')
+                    .upsert({ 
+                        user_id: state.user.id,
+                        selected_days: state.selectedDays,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'user_id' });
+
+                if (error) throw error;
+            } catch (err) {
+                console.error('Save error:', err);
+                // Fallback to local storage
+                localStorage.setItem('ukOfficeTracker_' + state.user.id, JSON.stringify(state.selectedDays));
+            }
+        };
+
+        const loadFromCloud = async () => {
+            if (!supabaseConfigured || !state.user) {
+                const saved = localStorage.getItem('ukOfficeTracker');
+                if (saved) state.selectedDays = JSON.parse(saved);
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('office_days')
+                    .select('selected_days')
+                    .eq('user_id', state.user.id)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') throw error;
+                
+                if (data && data.selected_days) {
+                    state.selectedDays = data.selected_days;
+                }
+            } catch (err) {
+                console.error('Load error:', err);
+                const saved = localStorage.getItem('ukOfficeTracker_' + state.user.id);
+                if (saved) state.selectedDays = JSON.parse(saved);
+            }
+        };
+
+        // Debounced save
+        let saveTimeout = null;
+        const debouncedSave = () => {
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(saveToCloud, 500);
+        };
+
+        // Auth functions
+        const signInWithGitHub = async () => {
+            if (!supabaseConfigured) {
+                showToast('Please configure Supabase first', 'error');
+                return;
+            }
+
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    redirectTo: window.location.origin + window.location.pathname
+                }
+            });
+
+            if (error) {
+                console.error('Login error:', error);
+                showToast('Login failed: ' + error.message, 'error');
+            }
+        };
+
+        const signOut = async (message = 'Signed out') => {
+            if (state.sessionTimerInterval) {
+                clearInterval(state.sessionTimerInterval);
+            }
+            
+            if (supabaseConfigured) {
+                await supabase.auth.signOut();
+            }
+            
+            state.user = null;
+            state.selectedDays = {};
+            state.sessionStart = null;
+            
+            document.getElementById('userBadge').style.display = 'none';
+            showLoginModal();
+            render();
+            
+            showToast(message);
+        };
+
+        const handleAuthStateChange = async (event, session) => {
+            if (session?.user) {
+                state.user = session.user;
+                
+                // Get user metadata
+                const username = state.user.user_metadata?.user_name || 
+                                state.user.user_metadata?.preferred_username ||
+                                state.user.email?.split('@')[0] || 
+                                'User';
+                const avatar = state.user.user_metadata?.avatar_url;
+                
+                document.getElementById('displayUsername').textContent = username;
+                
+                const avatarEl = document.getElementById('userAvatar');
+                if (avatar) {
+                    avatarEl.src = avatar;
+                    avatarEl.style.display = 'block';
+                } else {
+                    avatarEl.style.display = 'none';
+                }
+                
+                document.getElementById('userBadge').style.display = 'inline-flex';
+                hideLoginModal();
+                
+                // Start session timer
+                startSessionTimer();
+                
+                // Load user data
+                await loadFromCloud();
+                render();
+                
+                if (event === 'SIGNED_IN') {
+                    showToast(`Welcome, ${username}!`);
+                }
+            } else {
+                state.user = null;
+                document.getElementById('userBadge').style.display = 'none';
+                showLoginModal();
+            }
+        };
+
+        // Helper functions
+        const isWeekend = (date) => date.getDay() === 0 || date.getDay() === 6;
+
+        const isHoliday = (date) => {
+            const yearHolidays = state.holidays[date.getFullYear()] || [];
+            return yearHolidays.some(h => 
+                h.date.getDate() === date.getDate() && 
+                h.date.getMonth() === date.getMonth()
+            );
+        };
+
+        const getHolidayName = (date) => {
+            const yearHolidays = state.holidays[date.getFullYear()] || [];
+            const holiday = yearHolidays.find(h => 
+                h.date.getDate() === date.getDate() && 
+                h.date.getMonth() === date.getMonth()
+            );
+            return holiday ? holiday.name : null;
+        };
+
+        const isWorkingDay = (date) => !isWeekend(date) && !isHoliday(date);
+        const getDateKey = (date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+        const isToday = (date) => {
+            const today = new Date();
+            return date.getDate() === today.getDate() &&
+                   date.getMonth() === today.getMonth() &&
+                   date.getFullYear() === today.getFullYear();
+        };
+
+        const calculateStats = () => {
+            const year = state.currentYear;
+            const month = state.currentMonth;
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            let workingDays = 0;
+            let selectedDays = 0;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                if (isWorkingDay(date)) {
+                    workingDays++;
+                    if (state.selectedDays[getDateKey(date)]) selectedDays++;
+                }
+            }
+
+            const requiredDays = Math.ceil(workingDays * 0.6);
+            const remainingDays = Math.max(0, requiredDays - selectedDays);
+            const percentage = workingDays > 0 ? Math.round((selectedDays / workingDays) * 100) : 0;
+            const isCompliant = selectedDays >= requiredDays;
+
+            return { workingDays, requiredDays, selectedDays, remainingDays, percentage, isCompliant };
+        };
+
+        // Render functions
+        const renderYearSelector = () => {
+            const container = document.getElementById('yearSelector');
+            const years = [2024, 2025, 2026, 2027];
+            container.innerHTML = years.map(year => 
+                `<button class="year-btn ${year === state.currentYear ? 'active' : ''}" data-year="${year}">${year}</button>`
+            ).join('');
+
+            container.querySelectorAll('.year-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.currentYear = parseInt(btn.dataset.year);
+                    state.currentMonth = 0;
+                    render();
+                });
+            });
+        };
+
+        const renderCalendar = () => {
+            const grid = document.getElementById('calendarGrid');
+            const year = state.currentYear;
+            const month = state.currentMonth;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                              'July', 'August', 'September', 'October', 'November', 'December'];
+
+            document.getElementById('currentMonth').textContent = `${monthNames[month]} ${year}`;
+
+            let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                .map(d => `<div class="day-header">${d}</div>`).join('');
+
+            const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
+
+            for (let i = 0; i < adjustedFirstDay; i++) {
+                html += '<div class="day-cell empty"></div>';
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const key = getDateKey(date);
+                const weekend = isWeekend(date);
+                const holiday = isHoliday(date);
+                const holidayName = getHolidayName(date);
+                const selected = state.selectedDays[key];
+                const today = isToday(date);
+
+                let classes = ['day-cell'];
+                if (weekend) classes.push('weekend');
+                if (holiday) classes.push('holiday');
+                if (selected && !weekend && !holiday) classes.push('selected');
+                if (today) classes.push('today');
+
+                const title = holidayName || (weekend ? 'Weekend' : '');
+                html += `<div class="${classes.join(' ')}" data-date="${key}" title="${title}">${day}</div>`;
+            }
+
+            grid.innerHTML = html;
+
+            grid.querySelectorAll('.day-cell:not(.empty):not(.weekend):not(.holiday)').forEach(cell => {
+                cell.addEventListener('click', () => {
+                    if (!state.user) {
+                        showToast('Please sign in first', 'error');
+                        return;
+                    }
+                    
+                    const key = cell.dataset.date;
+                    if (state.selectedDays[key]) {
+                        delete state.selectedDays[key];
+                    } else {
+                        state.selectedDays[key] = true;
+                    }
+                    debouncedSave();
+                    render();
+                });
+            });
+        };
+
+        const renderStats = () => {
+            const stats = calculateStats();
+            
+            document.getElementById('workingDays').textContent = stats.workingDays;
+            document.getElementById('requiredDays').textContent = stats.requiredDays;
+            document.getElementById('selectedDays').textContent = stats.selectedDays;
+            document.getElementById('remainingDays').textContent = stats.remainingDays;
+
+            const statusEl = document.getElementById('complianceStatus');
+            const percentEl = document.getElementById('compliancePercent');
+            const ringEl = document.getElementById('progressRing');
+
+            statusEl.textContent = stats.isCompliant ? '✓ Compliant' : '⚠ Not Compliant';
+            statusEl.className = `compliance-status ${stats.isCompliant ? 'compliant' : 'not-compliant'}`;
+            
+            percentEl.textContent = `${stats.percentage}%`;
+            percentEl.style.color = stats.isCompliant ? 'var(--accent)' : 'var(--danger)';
+
+            const circumference = 263.89;
+            const offset = circumference - (stats.percentage / 100) * circumference;
+            ringEl.style.strokeDashoffset = offset;
+            ringEl.className = `progress ${stats.isCompliant ? 'compliant' : 'not-compliant'}`;
+
+            document.getElementById('remainingDays').className = 
+                `stat-value ${stats.remainingDays > 0 ? 'danger' : 'accent'}`;
+        };
+
+        const renderHolidays = () => {
+            const container = document.getElementById('holidayList');
+            const monthHolidays = (state.holidays[state.currentYear] || [])
+                .filter(h => h.date.getMonth() === state.currentMonth)
+                .sort((a, b) => a.date.getDate() - b.date.getDate());
+
+            if (monthHolidays.length === 0) {
+                container.innerHTML = '<div class="holiday-item" style="color: var(--text-muted);">No public holidays this month</div>';
+                return;
+            }
+
+            container.innerHTML = monthHolidays.map(h => `
+                <div class="holiday-item">
+                    <span class="holiday-date">${h.date.getDate()}</span>
+                    <span>${h.name}</span>
+                </div>
+            `).join('');
+        };
+
+        const render = () => {
+            renderYearSelector();
+            renderCalendar();
+            renderStats();
+            renderHolidays();
+        };
+
+        // Toast notification
+        const showToast = (message, type = 'success') => {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        };
+
+        // Modal handling
+        const showLoginModal = () => {
+            document.getElementById('loginModal').classList.remove('hidden');
+        };
+
+        const hideLoginModal = () => {
+            document.getElementById('loginModal').classList.add('hidden');
+        };
+
+        // Event listeners
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            state.currentMonth--;
+            if (state.currentMonth < 0) {
+                state.currentMonth = 11;
+                state.currentYear--;
+            }
+            render();
+        });
+
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            state.currentMonth++;
+            if (state.currentMonth > 11) {
+                state.currentMonth = 0;
+                state.currentYear++;
+            }
+            render();
+        });
+
+        document.getElementById('clearMonth').addEventListener('click', () => {
+            const year = state.currentYear;
+            const month = state.currentMonth;
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                delete state.selectedDays[`${year}-${month}-${day}`];
+            }
+            debouncedSave();
+            render();
+            showToast('Month cleared');
+        });
+
+        document.getElementById('githubLogin').addEventListener('click', signInWithGitHub);
+        document.getElementById('signOut').addEventListener('click', () => signOut());
+
+        // Initialize
+        const init = async () => {
+            initHolidays();
+            render();
+            
+            if (!supabaseConfigured) {
+                showLoginModal();
+                console.warn('Supabase not configured. Please add your credentials.');
+                return;
+            }
+            
+            // Set up auth state listener
+            supabase.auth.onAuthStateChange(handleAuthStateChange);
+            
+            // Check for existing session
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                handleAuthStateChange('INITIAL_SESSION', session);
+            } else {
+                showLoginModal();
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>
