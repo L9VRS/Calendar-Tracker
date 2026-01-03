@@ -6,7 +6,7 @@
     <title>UK Office Day Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
     <style>
-       :root {
+        :root {
             --bg-primary: #09090b;
             --bg-secondary: #131316;
             --bg-card: #1c1c21;
@@ -735,7 +735,7 @@
     <!-- Login Modal -->
     <div class="modal-overlay" id="loginModal">
         <div class="modal">
-            <div class="modal-icon"></div>
+            <div class="modal-icon">🔐</div>
             <h2 class="modal-title">Welcome!</h2>
             <p class="modal-text">Sign in with GitHub to save and sync your office days across devices.</p>
             <button class="btn btn-github" id="githubLogin">
@@ -751,8 +751,8 @@
     <div class="container">
         <header>
             <div class="logo">
-                <div class="logo-icon"></div>
-                <h1>Office Day Tracker (Hooray)</h1>
+                <div class="logo-icon">📅</div>
+                <h1>UK Office Day Tracker</h1>
             </div>
             <p class="subtitle">Track your 60% office attendance requirement</p>
             <div class="user-badge" id="userBadge" style="display: none;">
@@ -1082,7 +1082,14 @@
             }
             
             if (supabaseConfigured) {
-                await supabaseClient.auth.signOut();
+                try {
+                    const { error } = await supabaseClient.auth.signOut({ scope: 'global' });
+                    if (error) {
+                        console.error('Sign out error:', error);
+                    }
+                } catch (err) {
+                    console.error('Sign out exception:', err);
+                }
             }
             
             state.user = null;
