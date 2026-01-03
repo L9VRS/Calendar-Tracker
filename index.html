@@ -861,11 +861,11 @@
         const SESSION_TIMEOUT = 30 * 60 * 1000;
         
         // Initialize Supabase client
-        let supabase = null;
+        let supabaseClient = null;
         const supabaseConfigured = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
         
         if (supabaseConfigured) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         }
 
         // UK Public Holidays Calculator
@@ -1007,7 +1007,7 @@
             }
 
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('office_days')
                     .upsert({ 
                         user_id: state.user.id,
@@ -1031,7 +1031,7 @@
             }
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('office_days')
                     .select('selected_days')
                     .eq('user_id', state.user.id)
@@ -1063,7 +1063,7 @@
                 return;
             }
 
-            const { error } = await supabase.auth.signInWithOAuth({
+            const { error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'github',
                 options: {
                     redirectTo: window.location.origin + window.location.pathname
@@ -1082,7 +1082,7 @@
             }
             
             if (supabaseConfigured) {
-                await supabase.auth.signOut();
+                await supabaseClient.auth.signOut();
             }
             
             state.user = null;
@@ -1385,10 +1385,10 @@
             }
             
             // Set up auth state listener
-            supabase.auth.onAuthStateChange(handleAuthStateChange);
+            supabaseClient.auth.onAuthStateChange(handleAuthStateChange);
             
             // Check for existing session
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 handleAuthStateChange('INITIAL_SESSION', session);
             } else {
